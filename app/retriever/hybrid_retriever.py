@@ -51,7 +51,4 @@ class HybridRetriever:
             "uses_faiss": self.uses_faiss
         }
 
-        print("\n===== RETRIEVER OUTPUT =====")
-        print(enriched)
-
         return enriched

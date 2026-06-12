@@ -5,11 +5,14 @@ otherwise falls back to a deterministic mock (useful for tests / dev).
 """
 import os
 import time
+import logging
 from dotenv import load_dotenv
 from google import genai
 
 from app.config import GEMINI_API_KEY, LLM_MOCK
 from app import metrics
+
+logger = logging.getLogger(__name__)
 
 try:
     from opentelemetry import trace as ot_trace
@@ -61,7 +64,7 @@ class LLMClient:
                         return resp_text
                 except Exception as e:
                     if attempt == self.max_retries - 1 and model_candidate == models_to_try[-1]:
-                        print(f"[ERROR] Gemini error (final): {e}")
+                        logger.error(f"Gemini error (final): {e}")
                     continue
 
             time.sleep(2 * (attempt + 1))

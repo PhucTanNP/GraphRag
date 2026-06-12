@@ -2,28 +2,28 @@ name: GraphRAG CI/CD
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
     inputs:
-      debug_enabled:
-        description: 'Enable tmate debug session'
-        required: false
-        default: 'false'
-      run_integration:
-        description: 'Run integration tests (true/false)'
+      deploy:
+        description: 'Deploy to EC2 (true/false)'
         required: false
         default: 'false'
       run_stress:
         description: 'Run stress tests (true/false)'
         required: false
         default: 'false'
+      debug_enabled:
+        description: 'Enable tmate debug session'
+        required: false
+        default: 'false'
 
 env:
   PYTHONPATH: .
   RUN_STRESS: '0'
-  RUN_INTEGRATION: '0'
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'drcshop' }}/graphrag
 
 jobs:
   # ============================================================
@@ -61,6 +61,74 @@ jobs:
           pytest tests -q --ignore=tests/test_stress_conversation.py \
             --ignore=tests/test_tracing_init.py \
             -x --timeout=30
+
+  # ============================================================
+  # 2. DOCKER BUILD & PUSH
+  # ============================================================
+  docker:
+    name: Docker Build & Push
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Generate tags
+        id: meta
+        run: |
+          echo "tags=${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # 3. DEPLOY TO EC2
+  # ============================================================
+  deploy:
+    name: Deploy to EC2
+    needs: docker
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "🚀 Pulling GraphRAG image..."
+            docker pull ${{ env.DOCKER_IMAGE }}:latest
+
+            echo "🔄 Restarting GraphRAG service..."
+            cd /app/graphrag
+            docker compose up -d --force-recreate graphrag-api
+
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+
+            echo "✅ GraphRAG deployed successfully!"
 
   # ============================================================
   # 4. STRESS TESTS (manual only)
@@ -136,59 +204,7 @@ jobs:
           python -m pip_audit . || echo "Vulnerabilities found (non-blocking)"
 
   # ============================================================
-  # 6. BUILD CHECK (Docker)
-  # ============================================================
-  docker-build:
-    name: Docker Build Check
-    needs: unit-tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: false
-          tags: graphrag-service:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ============================================================
-  # 7. DEPLOY (manual trigger, main branch only)
-  # ============================================================
-  deploy:
-    name: Deploy to Production
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
-    needs: [unit-tests, integration-tests, security-scan, docker-build]
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts || true
-
-      - name: Copy files to server
-        run: |
-          rsync -avz --exclude='.git' --exclude='__pycache__' --exclude='.env' \
-            ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/app/graphrag/
-
-      - name: Restart service
-        run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "cd /app/graphrag && docker compose up -d --build graphrag-api" || true
-
-  # ============================================================
-  # 8. DEBUG (tmate, manual only)
+  # 6. DEBUG (tmate, manual only)
   # ============================================================
   debug:
     name: Debug via tmate

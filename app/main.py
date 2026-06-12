@@ -1,10 +1,15 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from app.pipeline.orchestrator import GraphRAGv3
+from app.api.v1 import router as api_v1_router
 import re
 import logging
 
 app = FastAPI()
+
+# ── Include API v1 router ─────────────────────────────────────────────────
+app.include_router(api_v1_router)
+
 chatbot = GraphRAGv3()
 
 # attach optional middlewares

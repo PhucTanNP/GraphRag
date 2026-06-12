@@ -9,7 +9,4 @@ class Mapper:
 
         results = self.value_mapper.map_query(query)
 
-        print("\n===== MAPPED =====")
-        print(results)
-
         return results
