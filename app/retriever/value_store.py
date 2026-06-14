@@ -3,7 +3,7 @@ import unicodedata
 import os
 import pickle
 
-from app.neo4j import Neo4jClient
+from app.services import Neo4jClient
 
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "..", "mapper", "value_store.pkl")
 

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Graph RAG Chatbot - Tư Vấn Lốp Chuyên Nghiệp</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container { 
+      max-width: 800px; 
+      margin: 20px auto; 
+      padding: 24px; 
+      background: #ffffff; 
+      border-radius: 16px; 
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    h1 { 
+      margin: 0 0 8px 0;
+      color: #2c3e50;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #7f8c8d;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .chat { 
+      min-height: 400px; 
+      max-height: 500px;
+      border: 1px solid #ecf0f1; 
+      border-radius: 12px; 
+      padding: 20px; 
+      background: #f8f9fa; 
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    .message { 
+      margin-bottom: 16px; 
+      animation: slideIn 0.3s ease-in;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .user-msg {
+      text-align: right;
+      margin-left: 40px;
+    }
+    .user-msg .bubble {
+      background: #3498db;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 18px;
+      border-bottom-right-radius: 4px;
+      display: inline-block;
+      max-width: 70%;
+      word-wrap: break-word;
+    }
+    .bot-msg {
+      text-align: left;
+      margin-right: 40px;
+    }
+    .bot-msg .bubble {
+      background: #ecf0f1;
+      color: #2c3e50;
+      padding: 14px 16px;
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      display: inline-block;
+      max-width: 70%;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+    .bot-msg strong { color: #2980b9; }
+    .bot-msg em { color: #e74c3c; }
+    .bot-msg table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    .bot-msg table th, .bot-msg table td {
+      padding: 8px;
+      border: 1px solid #bdc3c7;
+      text-align: center;
+    }
+    .bot-msg table th { background: #3498db; color: white; }
+    .bot-msg ul {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .bot-msg li {
+      margin: 4px 0;
+    }
+    .input-row { 
+      display: flex; 
+      gap: 12px; 
+      margin-bottom: 16px;
+    }
+    input[type=text] { 
+      flex: 1; 
+      padding: 14px 16px; 
+      border: 2px solid #ecf0f1; 
+      border-radius: 10px;
+      font-size: 15px;
+      transition: border-color 0.3s;
+    }
+    input[type=text]:focus {
+      outline: none;
+      border-color: #3498db;
+    }
+    button { 
+      padding: 14px 24px; 
+      border: none; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; 
+      border-radius: 10px; 
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+      transition: transform 0.2s;
+    }
+    button:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    .small { 
+      font-size: 13px; 
+      color: #7f8c8d; 
+    }
+    .hint { 
+      margin-top: 12px; 
+      padding: 12px;
+      background: #ecf0f1;
+      border-left: 4px solid #3498db;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #34495e;
+    }
+    .reset-btn {
+      background: #95a5a6;
+      padding: 10px 16px;
+      font-size: 13px;
+    }
+    .reset-btn:hover {
+      background: #7f8c8d;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏍️ Chatbot Tư Vấn Lốp Chuyên Nghiệp</h1>
+    <p class="subtitle">Hỏi về giá, tốc độ, tải trọng, hoặc so sánh các loại lốp</p>
+    <div class="chat" id="chat"></div>
+    <div class="input-row">
+      <input type="text" id="query" placeholder="Nhập câu hỏi... (ví dụ: Giá lốp 120/70-17 bao nhiêu?)" autocomplete="off" />
+      <button onclick="sendQuery()">Gửi</button>
+    </div>
+    <div class="hint">
+      <strong>💡 Gợi ý:</strong> Hãy hỏi cụ thể về kích thước lốp (ví dụ: 120/70-17, 2.50-17) để tôi trả lời chính xác. 
+      Sau khi hỏi một lốp, bạn có thể hỏi "Mẫu này..." để so sánh hoặc lấy thêm thông tin.
+    </div>
+    <div class="hint">
+      <button onclick="resetContext()" class="reset-btn">🔄 Reset Context (Bắt đầu lại)</button>
+    </div>
+  </div>
+
+  <script>
+    const chatEl = document.getElementById('chat');
+    const queryEl = document.getElementById('query');
+
+    function appendMessage(role, html) {
+      const div = document.createElement('div');
+      div.className = 'message ' + (role === 'user' ? 'user-msg' : 'bot-msg');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.innerHTML = html;
+      div.appendChild(bubble);
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    async function sendQuery() {
+      const q = queryEl.value.trim();
+      if (!q) return;
+      appendMessage('user', q);
+      queryEl.value = '';
+      
+      try {
+        const response = await fetch(`/query?q=${encodeURIComponent(q)}`);
+        const data = await response.json();
+        if (data.error) {
+          appendMessage('bot', `<span style="color:#e74c3c"><strong>❌ Lỗi:</strong> ${data.error}</span>`);
+        } else {
+          appendMessage('bot', data.result);
+        }
+      } catch (e) {
+        appendMessage('bot', `<span style="color:#e74c3c"><strong>❌ Lỗi kết nối:</strong> ${e.message}</span>`);
+      }
+    }
+
+    async function resetContext() {
+      try {
+        const response = await fetch('/reset', { method: 'POST' });
+        const data = await response.json();
+        appendMessage('bot', `<strong>✅ ${data.status}</strong><br>Bạn có thể bắt đầu hỏi từ đầu!`);
+      } catch (e) {
+        appendMessage('bot', `<span style="color:#e74c3c">Lỗi: ${e.message}</span>`);
+      }
+    }
+
+    queryEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendQuery();
+    });
+    
+    // Show welcome message
+    window.addEventListener('load', () => {
+      appendMessage('bot', '👋 <strong>Chào bạn!</strong> Tôi là chatbot tư vấn lốp chuyên nghiệp. Hỏi tôi về bất kỳ loại lốp nào - giá, tốc độ, tải, hoặc so sánh giữa các loại. <br><br>💬 Hãy bắt đầu bằng cách nói: "Lốp 120/70-17 giá bao nhiêu?" hoặc "So sánh lốp 100/80-14 và 110/80-14"');
+    });
+  </script>
+</body>
+</html>

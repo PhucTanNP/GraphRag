@@ -82,10 +82,6 @@ REDIS_URL = os.environ.get("REDIS_URL") or None
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or None
 LLM_MOCK = os.environ.get("LLM_MOCK", "0").strip().lower() in ("1", "true", "yes", "on")
 
-# ── API ──────────────────────────────────────────────────────────────────────
-API_KEY = os.environ.get("API_KEY") or None
-RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", 60))
-
 # ── Observability ────────────────────────────────────────────────────────────
 ENABLE_OTEL = os.environ.get("ENABLE_OTEL", "false").lower() in ("1", "true", "yes")
 OTEL_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or os.environ.get("OTLP_ENDPOINT") or None

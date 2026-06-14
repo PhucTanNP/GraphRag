@@ -22,9 +22,8 @@ import logging
 import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from app.llm_client import LLMClient
+from app.services import LLMClient
 from app.config import GEMINI_API_KEY, LLM_MOCK
-from app.metrics import request_counter
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +83,6 @@ def detect_tire(req: DetectRequest):
     trả về kết quả có cấu trúc.
     """
     try:
-        # Track metrics
-        if request_counter is not None:
-            try:
-                request_counter.labels(endpoint='/api/v1/detect').inc()
-            except Exception:
-                pass
-
         image_url = req.image_url.strip()
         if not image_url:
             raise HTTPException(status_code=400, detail="image_url is required")

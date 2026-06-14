@@ -11,8 +11,7 @@ Trả về:
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from app.pipeline.orchestrator import GraphRAGv3
-from app.metrics import request_counter
+from app.pipeline.orchestrator_v4 import GraphRAGV4
 
 logger = logging.getLogger(__name__)
 
@@ -39,27 +38,20 @@ _chatbot_instance = None
 def get_chatbot():
     global _chatbot_instance
     if _chatbot_instance is None:
-        _chatbot_instance = GraphRAGv3()
+        _chatbot_instance = GraphRAGV4()
     return _chatbot_instance
 
 
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, chatbot: GraphRAGv3 = Depends(get_chatbot)):
+def chat(req: ChatRequest, chatbot: GraphRAGV4 = Depends(get_chatbot)):
     """Gửi tin nhắn chat và nhận phản hồi từ GraphRAG pipeline.
 
     - Dùng GET /query?q=... cho truy vấn đơn giản (hỗ trợ từ main.py)
     - Dùng POST /api/v1/chat cho tích hợp backend chính thức
     """
     try:
-        # Track metrics
-        if request_counter is not None:
-            try:
-                request_counter.labels(endpoint='/api/v1/chat').inc()
-            except Exception:
-                pass
-
         message = req.message.strip()
         if not message:
             raise HTTPException(status_code=400, detail="Message cannot be empty")

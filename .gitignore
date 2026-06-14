@@ -22,6 +22,7 @@ venv/
 # ── Generated / cache data (can be rebuilt from Neo4j) ──────────────────────
 *.npy
 *.pkl
+data/
 app/mapper/embeddings.npy
 app/mapper/value_store.pkl
 
