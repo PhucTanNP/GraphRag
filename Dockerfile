@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install system deps for neo4j driver
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc curl && \
+    gcc curl libgl1 libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy project files and install dependencies
