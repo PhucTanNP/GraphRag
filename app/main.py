@@ -6,6 +6,13 @@ from app.api.v1 import router as api_v1_router
 from app.api.v1.main_routes import router as main_router
 from app.pipeline.orchestrator_v4 import GraphRAGV4
 
+# ── Logging config ──────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    force=True,
+)
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════

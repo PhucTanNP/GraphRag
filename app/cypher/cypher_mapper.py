@@ -68,7 +68,7 @@ class CypherMapper:
 
         # ── Intent-based routing ────────────────────────────────────────
         builder_map: dict[str, callable] = {
-            "THONG_SO":  lambda: self._build_single(size),
+            "SPECS":  lambda: self._build_single(size),
             "SINGLE":    lambda: self._build_single(size),
             "SPEED":     lambda: self._build_speed(size),
             "LOAD":      lambda: self._build_load(size),
@@ -92,6 +92,44 @@ class CypherMapper:
                 return result
 
         # Fallback
+        if size:
+            return self._build_single(size)
+        return None, None
+
+    def map_from_entities(self, intent: str | None, size: str | None = None,
+                           brand: str | None = None,
+                           compare_sizes: list[str] | None = None) -> tuple[Optional[str], Optional[dict]]:
+        """Map intent + pre-extracted entities → Cypher (bỏ qua regex).
+
+        Dùng khi LLM fallback đã extract entities sẵn,
+        hoặc khi dùng matched question từ QuestionBank.
+        """
+        attribute = self._intent_to_attribute(intent)
+
+        builder_map: dict[str, callable] = {
+            "SPECS":  lambda: self._build_single(size),
+            "SINGLE":    lambda: self._build_single(size),
+            "SPEED":     lambda: self._build_speed(size),
+            "LOAD":      lambda: self._build_load(size),
+            "PRICE":     lambda: self._build_price(size),
+            "PRESSURE":  lambda: self._build_pressure(size),
+            "MAX_LOAD":  lambda: self._build_max_load(size),
+            "MAX_SPEED": lambda: self._build_max_speed(size),
+            "MAX_PRICE": lambda: self._build_max_price(size),
+            "COMPARE":   lambda: self._build_compare(size, compare_sizes or []),
+            "BRAND":     lambda: self._build_brand(size, brand),
+            "DRAINAGE":  lambda: self._build_attribute_search(attribute),
+            "DURABILITY": lambda: self._build_attribute_search(attribute),
+            "TUBE":      lambda: self._build_attribute_search(attribute),
+            "SERVICE":   lambda: self._build_attribute_search(attribute),
+        }
+
+        builder = builder_map.get(intent) if intent else None
+        if builder:
+            result = builder()
+            if result[0] is not None:
+                return result
+
         if size:
             return self._build_single(size)
         return None, None
@@ -236,18 +274,13 @@ class CypherMapper:
 
     @staticmethod
     def _build_attribute_search(attribute: str | None) -> tuple[str, dict]:
-        search_map = {
-            "drainage": "thoat nuoc", "durability": "do ben",
-            "tube": "sam", "service": "dich vu", "warranty": "bao hanh",
-        }
-        term = search_map.get(attribute) if attribute else None
-        if not term:
-            return None, None
-        return ("""
-        MATCH (t:Tire)
-        WHERE toLower(toString(t.name)) CONTAINS toLower($s)
-           OR toLower(toString(t.description)) CONTAINS toLower($s)
-           OR toLower(toString(t.notes)) CONTAINS toLower($s)
-        RETURN t.size AS size, t.brand AS brand, t.name AS name, t.gia_ban_co_vat AS price
-        LIMIT 10
-        """, {"s": term})
+        # TUBE — có dữ liệu thực tế trong Neo4j (t.co_sam)
+        if attribute == "tube":
+            return ("""
+            MATCH (t:Tire) WHERE t.co_sam = True
+            RETURN t.size AS size, t.brand AS brand, t.gia_ban_co_vat AS price
+            LIMIT 10
+            """, None)
+        # drainage, durability, service — không có dữ liệu trong Neo4j
+        # → trả về None để pipeline rơi vào LLM fallback
+        return None, None

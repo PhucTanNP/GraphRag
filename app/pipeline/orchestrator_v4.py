@@ -34,7 +34,7 @@ from app.response.normalizer import normalize_data, dedup_data
 logger = logging.getLogger(__name__)
 
 # ─── Configuration ──────────────────────────────────────────────────────
-CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", 0.40))
+CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", 3.0))
 
 
 class GraphRAGV4:
@@ -99,33 +99,34 @@ class GraphRAGV4:
 
             # ═══════════════════════════════════════════════════════════
             # STEP 3: Confidence Check
-            #   HIGH → dùng intent từ matched
-            #   LOW  → LLM normalize → (intent + câu hỏi chuẩn)
+            #   HIGH → intent từ BM25 + extract entities từ matched question
+            #   LOW  → LLM extract entities → map trực tiếp
             # ═══════════════════════════════════════════════════════════
             intent = matched["intent"] if matched else None
 
             if raw_conf >= CONFIDENCE_THRESHOLD:
-                logger.info("[V4] ✅ Cao (%.3f) → intent=%s + query gốc", raw_conf, intent)
-                query_for_mapper = query
+                logger.info("[V4] ✅ Cao (%.3f) → intent=%s, matched_q=%s",
+                             raw_conf, intent, matched["question"][:60])
+                # Dùng matched question (đã chuẩn) để regex extract size/brand
+                cypher, params = self.cypher_mapper.map(intent, matched["question"])
             else:
-                logger.info("[V4] ❌ Thấp (%.3f) → LLM FALLBACK TRIGGERED", raw_conf)
-                intent, normalized = self.llm_fallback.normalize(query)
-                if intent:
-                    logger.info("[V4] Normalized → intent=%s q=%s", intent, normalized)
-                    query_for_mapper = normalized
+                logger.info("[V4] ❌ Thấp (%.3f) → LLM EXTRACT ENTITIES", raw_conf)
+                entities = self.llm_fallback.extract_entities(query)
+                if entities.get("intent"):
+                    logger.info("[V4] LLM entities → %s", entities)
+                    cypher, params = self.cypher_mapper.map_from_entities(
+                        intent=entities["intent"],
+                        size=entities.get("size"),
+                        brand=entities.get("brand"),
+                        compare_sizes=entities.get("compare_sizes"),
+                    )
                 else:
-                    logger.info("[V4] LLM normalize thất bại → fallback answer")
+                    logger.info("[V4] LLM extract thất bại → fallback answer")
                     return self.llm_fallback.answer(query)
 
-            # ═══════════════════════════════════════════════════════════
-            # STEP 4: Map → Cypher query
-            # ═══════════════════════════════════════════════════════════
-            logger.info("[V4] Step 4: Map (intent=%s) → Cypher", intent)
-            cypher, params = self.cypher_mapper.map(intent, query_for_mapper)
-
             if not cypher:
-                logger.info("[V4] No Cypher → LLM FALLBACK TRIGGERED")
-                return self.llm_fallback.answer(query)
+                logger.info("[V4] No Cypher → LLM fallback answer")
+                return self.llm_fallback.answer_with_context(query, {"intent": intent})
 
             # ═══════════════════════════════════════════════════════════
             # STEP 5: Query Neo4j

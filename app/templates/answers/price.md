@@ -1,6 +1,6 @@
 ✅ **Giá hiện tại của lốp {size}{brand_str}:**
 
-💰 **{price:,.0f} VNĐ** — Mức giá cạnh tranh trên thị trường.
+💰 **{price_display}**
 
 📊 **Thông tin thêm:**
 - Giá lấy từ bảng giá chính thức (cập nhật tháng 5/2026)
