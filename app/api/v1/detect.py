@@ -1,200 +1,129 @@
-"""Detect API — endpoint phân tích ảnh lốp xe bằng Gemini Vision.
+"""Detect API — endpoint nhận dạng thông số lốp xe từ URL ảnh.
 
 Backend (Node.js) gọi:
   POST /api/v1/detect
   { image_url: "https://..." }
 
-Trả về:
-  {
-    "wear_level": "good|medium|worn|cracked",
-    "wear_percentage": 35,
-    "tire_type_detected": "Lốp xe máy",
-    "crack_detected": false,
-    "crack_severity": "none|mild|moderate|severe",
-    "crack_locations": [],
-    "confidence": 0.85,
-    "recommendation": "Lốp còn khá tốt..."
-  }
+Trả về brand/size/pattern + steps chi tiết từng bước.
 """
 
-import json
 import logging
-import re
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from app.services import LLMClient
-from app.config import GEMINI_API_KEY, LLM_MOCK
+from app.tire_detector import TireDetector
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Detect"])
 
+# ── Singleton ────────────────────────────────────────────────────────────────
+_detector: TireDetector | None = None
 
-# ── Request / Response models ────────────────────────────────────────────────
+
+def get_detector() -> TireDetector:
+    global _detector
+    if _detector is None:
+        _detector = TireDetector()
+    return _detector
+
+
+# ── Schemas ──────────────────────────────────────────────────────────────────
 
 class DetectRequest(BaseModel):
     image_url: str = Field(..., description="URL ảnh lốp xe (từ Cloudinary)")
 
 
+class StepDetail(BaseModel):
+    step: int
+    name: str
+    status: str  # "ok" | "error"
+    detail: str = ""
+    image: str | None = None  # base64 data URI của ảnh step
+    crops: list[dict] | None = None  # [{class, image}] cho step 4
+    detect_input_image: str | None = None  # base64 ảnh đầu vào YOLO detect (resized 1280px)
+
+
+class OcrDetail(BaseModel):
+    raw_text: str = ""
+    normalized_text: str = ""
+    ocr_confidence: float = 0.0
+    yolo_confidence: float = 0.0
+    crop_image: str | None = None  # base64 ảnh crop vùng detect
+    ocr_input_image: str | None = None  # base64 ảnh đầu vào PaddleOCR (48×320 đã pad)
+
+
+class DetectData(BaseModel):
+    brand: str | None = None
+    size: str | None = None
+    pattern: str | None = None
+    brand_ocr: OcrDetail | None = None
+    size_ocr: OcrDetail | None = None
+    pattern_ocr: OcrDetail | None = None
+    detections_count: int = 0
+
+
 class DetectResponse(BaseModel):
-    wear_level: str = Field(default="good", description="Mức độ mòn: good / medium / worn / cracked")
-    wear_percentage: int = Field(default=0, description="Phần trăm mòn ước tính (0-100)")
-    tire_type_detected: str = Field(default="", description="Loại lốp phát hiện được")
-    crack_detected: bool = Field(default=False, description="Có vết nứt không")
-    crack_severity: str = Field(default="none", description="Mức độ nứt: none / mild / moderate / severe")
-    crack_locations: list = Field(default=[], description="Vị trí vết nứt")
-    confidence: float = Field(default=0.0, description="Độ tin cậy (0.0-1.0)")
-    recommendation: str = Field(default="", description="Khuyến nghị")
+    success: bool = False
+    data: DetectData | None = None
+    steps: list[StepDetail] = []
+    error: str | None = None
+    processing_time_ms: float = 0.0
 
 
-# ── Prompt cho Gemini ────────────────────────────────────────────────────────
-
-DETECT_PROMPT = """Bạn là chuyên gia phân tích lốp xe. Hãy phân tích ảnh lốp xe này và trả về JSON (không markdown, không ```) với các trường:
-
-{
-  "wear_level": "good|medium|worn|cracked",
-  "wear_percentage": <số nguyên 0-100>,
-  "tire_type_detected": "<loại lốp phát hiện, ví dụ: Lốp xe máy, Lốp ô tô, Lốp xe tải>",
-  "crack_detected": true|false,
-  "crack_severity": "none|mild|moderate|severe",
-  "crack_locations": ["<mô tả vị trí nứt>"],
-  "confidence": <số thập phân 0.0-1.0>,
-  "recommendation": "<khuyến nghị bằng tiếng Việt>"
-}
-
-Quy tắc:
-- wear_level: "good" (mòn <20%), "medium" (20-50%), "worn" (50-80%), "cracked" (hỏng/nứt)
-- wear_percentage: ước lượng % mòn dựa trên độ sâu gai
-- crack_detected: true nếu thấy vết nứt, rách, phồng rộp
-- crack_severity: "none" nếu không nứt, "mild" nếu nứt nhẹ, "moderate" nếu nứt rõ, "severe" nếu nứt nặng
-- confidence: mức độ tự tin của bạn (0.0-1.0)
-- recommendation: khuyến nghị bằng tiếng Việt ngắn gọn (1-2 câu)
-
-Chỉ trả về JSON, không thêm text nào khác."""
-
-
-# ── Endpoint ─────────────────────────────────────────────────────────────────
+# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/detect", response_model=DetectResponse)
 def detect_tire(req: DetectRequest):
-    """Phân tích ảnh lốp xe bằng Gemini Vision.
+    """Nhận dạng thông số lốp xe từ URL ảnh.
 
-    Nhận URL ảnh, gửi lên Gemini để phân tích tình trạng lốp,
-    trả về kết quả có cấu trúc.
+    - Tải ảnh từ URL
+    - Chạy pipeline: segment → unwrap → CLAHE → YOLO detect + OCR
+    - Trả brand, size, pattern + steps chi tiết
     """
+    import time
+    start = time.time()
+
     try:
-        image_url = req.image_url.strip()
-        if not image_url:
-            raise HTTPException(status_code=400, detail="image_url is required")
+        if not req.image_url.strip():
+            return DetectResponse(success=False, error="image_url is required")
 
-        # Nếu là mock mode (không có Gemini API key) → trả kết quả giả định
-        if LLM_MOCK or not GEMINI_API_KEY:
-            return _mock_detect()
+        detector = get_detector()
+        result = detector.detect_from_url(req.image_url.strip())
 
-        # Gọi Gemini Vision để phân tích
-        result = _call_gemini_vision(image_url)
-        return result
+        def ocr(val):
+            if not val:
+                return None
+            return OcrDetail(**val) if isinstance(val, dict) else None
 
-    except HTTPException:
-        raise
+        data = None
+        if result.get("success"):
+            data = DetectData(
+                brand=result.get("brand"),
+                size=result.get("size"),
+                pattern=result.get("pattern"),
+                brand_ocr=ocr(result.get("brand_ocr")),
+                size_ocr=ocr(result.get("size_ocr")),
+                pattern_ocr=ocr(result.get("pattern_ocr")),
+                detections_count=result.get("detections_count", 0),
+            )
+
+        steps = [StepDetail(**s) for s in result.get("steps", [])]
+
+        return DetectResponse(
+            success=result.get("success", False),
+            data=data,
+            steps=steps,
+            error=result.get("error"),
+            processing_time_ms=(time.time() - start) * 1000,
+        )
+
     except Exception as e:
-        logger.exception("Detect API error")
-        # Fallback: trả mock nếu Gemini lỗi
-        logger.warning("Gemini vision failed, returning mock fallback")
-        return _mock_detect()
+        logger.exception("Detect error")
+        return DetectResponse(success=False, error=str(e), processing_time_ms=(time.time() - start) * 1000)
 
 
-# ── Private helpers ─────────────────────────────────────────────────────────
+@router.get("/detect/health")
+def health():
+    det = get_detector()
+    return {"status": "ok", "services": det.health()}
 
-def _call_gemini_vision(image_url: str) -> DetectResponse:
-    """Gửi ảnh lên Gemini Vision và parse kết quả."""
-    from google import genai
-    from google.genai import types
-    import requests
-
-    # Tải ảnh từ URL
-    img_response = requests.get(image_url, timeout=30)
-    img_response.raise_for_status()
-
-    # Xác định MIME type từ Content-Type header
-    content_type = img_response.headers.get("Content-Type", "image/jpeg")
-    img_bytes = img_response.content
-
-    if not img_bytes:
-        raise ValueError("Failed to download image: empty response")
-
-    # Khởi tạo Gemini client
-    client = genai.Client(api_key=GEMINI_API_KEY)
-
-    # Tạo image part
-    image_part = types.Part.from_bytes(data=img_bytes, mime_type=content_type)
-
-    # Gọi Gemini Vision
-    response = client.models.generate_content(
-        model="models/gemini-3.1-flash-lite",
-        contents=[DETECT_PROMPT, image_part],
-    )
-
-    raw_text = response.text.strip() if response and hasattr(response, "text") else ""
-    if not raw_text:
-        raise ValueError("Empty response from Gemini")
-
-    # Parse JSON từ response (loại bỏ markdown ``` nếu có)
-    parsed = _parse_json_response(raw_text)
-
-    return DetectResponse(**parsed)
-
-
-def _parse_json_response(text: str) -> dict:
-    """Parse JSON từ text response, xử lý cả trường hợp có ```markdown."""
-    # Loại bỏ ```json ... ``` hoặc ``` ... ```
-    text = text.strip()
-    json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
-    if json_match:
-        text = json_match.group(1).strip()
-
-    # Fallback: tìm { ... } trong text
-    brace_match = re.search(r"\{.*\}", text, re.DOTALL)
-    if brace_match:
-        text = brace_match.group(0)
-
-    try:
-        result = json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error("Failed to parse Gemini response as JSON", extra={"text": text[:500], "error": str(e)})
-        raise ValueError(f"Invalid JSON from Gemini: {e}")
-
-    # Validate + set defaults
-    return {
-        "wear_level": _safe_str(result.get("wear_level", "good")),
-        "wear_percentage": min(100, max(0, int(result.get("wear_percentage", 0)))),
-        "tire_type_detected": _safe_str(result.get("tire_type_detected", "")),
-        "crack_detected": bool(result.get("crack_detected", False)),
-        "crack_severity": _safe_str(result.get("crack_severity", "none")),
-        "crack_locations": result.get("crack_locations", []) if isinstance(result.get("crack_locations"), list) else [],
-        "confidence": min(1.0, max(0.0, float(result.get("confidence", 0.0)))),
-        "recommendation": _safe_str(result.get("recommendation", "")),
-    }
-
-
-def _safe_str(val, default=""):
-    if val is None:
-        return default
-    return str(val)
-
-
-def _mock_detect() -> DetectResponse:
-    """Trả kết quả mock khi không có Gemini."""
-    return DetectResponse(
-        wear_level="good",
-        wear_percentage=35,
-        tire_type_detected="Lốp xe máy",
-        crack_detected=False,
-        crack_severity="none",
-        crack_locations=[],
-        confidence=0.85,
-        recommendation=(
-            "Lốp còn khá tốt. Bạn có thể yên tâm sử dụng "
-            "thêm 5.000-8.000 km nữa trước khi cần thay."
-        ),
-    )

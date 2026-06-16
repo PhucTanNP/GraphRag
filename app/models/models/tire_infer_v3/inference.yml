@@ -1,0 +1,43 @@
+PreProcess:
+  transform_ops:
+  - DecodeImage:
+      channel_first: false
+      img_mode: BGR
+  - CTCLabelEncode:
+      max_text_length: 20
+  - SVTRRecResizeImg:
+      image_shape:
+      - 3
+      - 48
+      - 320
+  - KeepKeys:
+      keep_keys:
+      - image
+      - label
+      - length
+      - valid_ratio
+PostProcess:
+  name: CTCLabelDecode
+  character_dict_path: /kaggle/working/tire_rec_dataset_v2/tire_dict.txt
+  character_dict:
+  - '-'
+  - .
+  - /
+  - '0'
+  - '1'
+  - '2'
+  - '3'
+  - '4'
+  - '5'
+  - '6'
+  - '7'
+  - '8'
+  - '9'
+  - C
+  - D
+  - L
+  - P
+  - R
+  - S
+  - U
+  - x

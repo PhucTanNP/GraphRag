@@ -70,6 +70,38 @@ def get_secret(key: str, default: str = None) -> str:
     return _secrets.get(key, default=default)
 
 
+# ── Model paths ──────────────────────────────────────────────────────────────
+import os as _os
+_BASE = _os.path.dirname(_os.path.abspath(__file__))
+_MODELS_DIR = _os.path.join(_BASE, "models", "models")
+
+YOLO_SEG_MODEL_PATH = _os.environ.get("YOLO_SEG_MODEL_PATH") or _os.path.join(_MODELS_DIR, "best (5).pt")
+YOLO_DETECT_MODEL_PATH = _os.environ.get("YOLO_DETECT_MODEL_PATH") or _os.path.join(_MODELS_DIR, "best (4).pt")
+YOLO_CONF_THRESHOLD = float(_os.environ.get("YOLO_CONF_THRESHOLD", "0.25"))
+
+PADDLE_OCR_MODEL_PATH = _os.environ.get("PADDLE_OCR_MODEL_PATH") or _os.path.join(_MODELS_DIR, "tire_infer_v3")
+PADDLE_DICT_PATH = _os.environ.get("PADDLE_DICT_PATH") or _os.path.join(_MODELS_DIR, "paddle_dict.txt")
+
+TARGET_OCR_HEIGHT = int(_os.environ.get("TARGET_OCR_HEIGHT", "48"))
+MAX_OCR_WIDTH = int(_os.environ.get("MAX_OCR_WIDTH", "320"))
+MAX_IMAGE_WIDTH = int(_os.environ.get("MAX_IMAGE_WIDTH", "2268"))
+MIN_IMAGE_HEIGHT = int(_os.environ.get("MIN_IMAGE_HEIGHT", "32"))
+
+
+class _Settings:
+    """Settings namespace — cho các model file cũ import 'from app.config import settings'."""
+    yolo_seg_model_path = YOLO_SEG_MODEL_PATH
+    yolo_detect_model_path = YOLO_DETECT_MODEL_PATH
+    yolo_conf_threshold = YOLO_CONF_THRESHOLD
+    paddle_ocr_model_path = PADDLE_OCR_MODEL_PATH
+    paddle_dict_path = PADDLE_DICT_PATH
+    target_ocr_height = TARGET_OCR_HEIGHT
+    max_ocr_width = MAX_OCR_WIDTH
+    max_image_width = MAX_IMAGE_WIDTH
+    min_image_height = MIN_IMAGE_HEIGHT
+
+settings = _Settings()
+
 # ── Neo4j ────────────────────────────────────────────────────────────────────
 NEO4J_URI = os.environ.get("NEO4J_URI", "neo4j://127.0.0.1:7687")
 NEO4J_USER = os.environ.get("NEO4J_USER") or os.environ.get("NEO4J_USERNAME") or "neo4j"

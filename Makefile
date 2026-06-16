@@ -2,10 +2,10 @@
 
 # ── Development ───────────────────────────────────────────
 dev:        ## Run FastAPI with hot-reload
-	uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	KMP_DUPLICATE_LIB_OK=TRUE uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 run:        ## Run FastAPI (production mode)
-	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+	KMP_DUPLICATE_LIB_OK=TRUE uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 shell:      ## Open Python shell with project deps
 	uv run python
