@@ -103,6 +103,7 @@ class _Settings:
 settings = _Settings()
 
 # ── Neo4j ────────────────────────────────────────────────────────────────────
+NEO4J_ENABLED = os.environ.get("NEO4J_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 NEO4J_URI = os.environ.get("NEO4J_URI", "neo4j://127.0.0.1:7687")
 NEO4J_USER = os.environ.get("NEO4J_USER") or os.environ.get("NEO4J_USERNAME") or "neo4j"
 NEO4J_PASSWORD = get_secret("NEO4J_PASSWORD", default=os.environ.get("NEO4J_PASSWORD", ""))

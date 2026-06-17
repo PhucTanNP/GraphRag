@@ -1,55 +1,9 @@
 services:
-  neo4j:
-    image: neo4j:5
-    environment:
-      NEO4J_AUTH: "user/password"
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    volumes:
-      - neo4j_data:/data
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports:
-      - "9090:9090"
-
-  otel-collector:
-    image: otel/opentelemetry-collector:0.74.0
-    command: ["--config", "/etc/otel-collector-config.yaml"]
-    volumes:
-      - ./deploy/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-    ports:
-      - "4318:4318" # OTLP HTTP receiver
-      - "4317:4317" # OTLP gRPC receiver
-
   graphrag-api:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: password
-      REDIS_URL: redis://redis:6379
+    env_file: .env
     ports:
       - "8000:8000"
-    depends_on:
-      - neo4j
-      - redis
     restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-
-volumes:
-  neo4j_data:
