@@ -95,11 +95,15 @@ jobs:
             docker stop graphrag || true
             docker rm graphrag || true
 
+            echo "Create shared network..."
+            docker network create app-network 2>/dev/null || true
+
             echo "Run new container..."
             docker run -d \
               --name graphrag \
               --restart always \
               -p 8000:8000 \
+              --network app-network \
               --env-file /home/ubuntu/app/.env \
               $IMAGE
 
