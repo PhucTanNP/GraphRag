@@ -22,7 +22,7 @@ router = APIRouter(tags=["Chat"])
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000, description="Nội dung tin nhắn")
-    history: list = Field(default=[], description="Lịch sử hội thoại (chưa dùng, để tương thích)")
+    history: list = Field(default=[], description="Lịch sử hội thoại — dùng làm context cho Gemini sinh Cypher")
     mode: str = Field(default="fast", description="Chế độ trả lời: fast (template) hoặc deep (Gemini paraphrase)")
 
 
@@ -57,11 +57,16 @@ def chat(req: ChatRequest, chatbot: GraphRAGV5 = Depends(get_chatbot)):
         if not message:
             raise HTTPException(status_code=400, detail="Message cannot be empty")
 
+        # Log history nếu có
+        history = req.history or []
+        if history:
+            logger.info("Chat request with %d history messages", len(history))
+
         # Validate mode
         mode = req.mode if req.mode in ("fast", "deep") else "fast"
 
-        # Gọi pipeline GraphRag
-        result = chatbot.run(message, mode=mode)
+        # Gọi pipeline GraphRag với history
+        result = chatbot.run(message, mode=mode, history=history)
 
         return ChatResponse(result=result)
 

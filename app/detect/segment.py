@@ -106,6 +106,12 @@ def run_segmentation(image: np.ndarray, seg_model) -> dict:
             r_inner = int(ir)
             break
 
+    # ── Đảm bảo r_inner < r_outer ────────────────────────────────────
+    # Tránh lỗi np.linspace với số âm khi mask bị lỗi
+    if r_inner >= r_outer:
+        logger.warning("  r_inner (%d) >= r_outer (%d), fallback to ratio 0.35", r_inner, r_outer)
+        r_inner = int(r_outer * 0.35)
+
     # ── Tạo masked image ─────────────────────────────────────────────
     # Dùng mask nhị phân để giữ lại vùng lốp
     mask_3ch = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR) / 255.0
@@ -117,6 +123,9 @@ def run_segmentation(image: np.ndarray, seg_model) -> dict:
     y_min = max(0, cy - r_outer - 20)
     y_max = min(h, cy + r_outer + 20)
     masked_image = masked_image[y_min:y_max, x_min:x_max]
+    # Điều chỉnh tâm lốp theo crop
+    cx -= x_min
+    cy -= y_min
 
     # ── Vẽ kết quả segmentation ──────────────────────────────────────
     overlay = image.copy()

@@ -75,12 +75,12 @@ import os as _os
 _BASE = _os.path.dirname(_os.path.abspath(__file__))
 _MODELS_DIR = _os.path.join(_BASE, "models", "models")
 
-YOLO_SEG_MODEL_PATH = _os.environ.get("YOLO_SEG_MODEL_PATH") or _os.path.join(_MODELS_DIR, "best (5).pt")
-YOLO_DETECT_MODEL_PATH = _os.environ.get("YOLO_DETECT_MODEL_PATH") or _os.path.join(_MODELS_DIR, "best (4).pt")
+YOLO_SEG_MODEL_PATH = _os.environ.get("YOLO_SEG_MODEL_PATH") or _os.path.join(_MODELS_DIR, "yolo_seg.pt")
+YOLO_DETECT_MODEL_PATH = _os.environ.get("YOLO_DETECT_MODEL_PATH") or _os.path.join(_MODELS_DIR, "yolo_detect.pt")
 YOLO_CONF_THRESHOLD = float(_os.environ.get("YOLO_CONF_THRESHOLD", "0.25"))
 
-PADDLE_OCR_MODEL_PATH = _os.environ.get("PADDLE_OCR_MODEL_PATH") or _os.path.join(_MODELS_DIR, "tire_infer_v3")
-PADDLE_DICT_PATH = _os.environ.get("PADDLE_DICT_PATH") or _os.path.join(_MODELS_DIR, "paddle_dict.txt")
+PADDLE_OCR_MODEL_PATH = _os.environ.get("PADDLE_OCR_MODEL_PATH") or _os.path.join(_MODELS_DIR, "tire_infer_v6")
+PADDLE_DICT_PATH = _os.environ.get("PADDLE_DICT_PATH") or _os.path.join(_MODELS_DIR, "tire_dict.txt")
 
 TARGET_OCR_HEIGHT = int(_os.environ.get("TARGET_OCR_HEIGHT", "48"))
 MAX_OCR_WIDTH = int(_os.environ.get("MAX_OCR_WIDTH", "320"))

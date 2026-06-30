@@ -140,6 +140,29 @@ GREETING_PATTERNS: list[tuple[list[str], str, int]] = [
         "Dạ em cảm ơn anh/chị! Có gì anh/chị cứ hỏi, em sẵn lòng tư vấn ạ. 😊",
         1
     ),
+    (
+        ["liên hệ", "hotline", "số điện thoại", "số máy", "gọi điện", "gọi số",
+         "địa chỉ", "ở đâu", "thông tin liên hệ", "cách liên hệ", "tư vấn qua điện thoại",
+         "alo em", "gọi em", "nhắn em", "zalo"],
+        "Dạ, thông tin liên hệ của DRC Tires:\n"
+        "📞 **Hotline: 0905 033 776**\n"
+        "📍 **409 Trường Chinh, An Khê, Thanh Khê, TP.Đà Nẵng**\n"
+        "📧 Email: minhphat.ltd@gmail.com\n"
+        "🕐 Thứ 2 - Thứ 7: 07:30 - 17:00\n\n"
+        "Anh/chị gọi hotline để được tư vấn và đặt hàng nhanh nhất ạ! 😊",
+        1
+    ),
+    (
+        ["đặt hàng", "mua hàng", "mua lốp", "order", "mua ở đâu", "cửa hàng",
+         "đại lý", "showroom", "mua chỗ nào"],
+        "Dạ, anh/chị có thể:\n"
+        "📞 Gọi hotline **0905 033 776** để đặt hàng trực tiếp\n"
+        "📍 Hoặc ghé trực tiếp cửa hàng tại **409 Trường Chinh, An Khê, Thanh Khê, TP.Đà Nẵng**\n"
+        "📧 Email: minhphat.ltd@gmail.com\n"
+        "🕐 Thứ 2 - Thứ 7: 07:30 - 17:00\n\n"
+        "Cần tư vấn thêm lốp nào anh/chị cứ hỏi em nhé! 😊",
+        1
+    ),
 ]
 
 
@@ -332,10 +355,10 @@ def _format_gia(records: list[dict], question: str | None = None) -> str:
         brand = r.get("brand") or ""
         pattern = r.get("pattern_code") or r.get("code") or ""
         price = _fmt_price(r.get("sale_price_inc_vat") or r.get("gia") or r.get("price"))
-        text = f"• {brand} {size}"
+        text = f"• **{brand}** **{size}**"
         if pattern:
-            text += f" (hoa {pattern})"
-        text += f" — {price}đ"
+            text += f" (hoa **{pattern}**)"
+        text += f" — **{price}đ**"
         lines.append(text)
     return "📊 **Giá lốp**\n" + "\n".join(lines)
 
@@ -349,16 +372,16 @@ def _format_thong_so(records: list[dict], question: str | None = None) -> str:
         brand = r.get("brand") or ""
         specs = []
         if r.get("max_speed_kmh"):
-            specs.append(f"tốc độ {r['max_speed_kmh']} km/h")
+            specs.append(f"tốc độ **{r['max_speed_kmh']} km/h**")
         if r.get("max_load_kg"):
-            specs.append(f"tải {r['max_load_kg']} kg")
+            specs.append(f"tải **{r['max_load_kg']} kg**")
         if r.get("outer_diameter_mm"):
-            specs.append(f"đường kính {r['outer_diameter_mm']} mm")
+            specs.append(f"đường kính **{r['outer_diameter_mm']} mm**")
         if r.get("overall_width_mm"):
-            specs.append(f"rộng {r['overall_width_mm']} mm")
+            specs.append(f"rộng **{r['overall_width_mm']} mm**")
         if r.get("sale_price_inc_vat"):
-            specs.append(f"giá {_fmt_price(r['sale_price_inc_vat'])}đ")
-        lines.append(f"• {brand} {size}: {', '.join(specs)}")
+            specs.append(f"giá **{_fmt_price(r['sale_price_inc_vat'])}đ**")
+        lines.append(f"• **{brand}** **{size}**: {', '.join(specs)}")
     return "📐 **Thông số kỹ thuật**\n" + "\n".join(lines)
 
 
@@ -374,12 +397,12 @@ def _format_so_sanh(records: list[dict], question: str | None = None) -> str:
         load = r.get("max_load_kg")
         specs = []
         if price != "?":
-            specs.append(f"{price}đ")
+            specs.append(f"**{price}đ**")
         if speed:
-            specs.append(f"{speed} km/h")
+            specs.append(f"**{speed} km/h**")
         if load:
-            specs.append(f"tải {load}kg")
-        lines.append(f"• {brand} {size}: {', '.join(specs)}")
+            specs.append(f"tải **{load}kg**")
+        lines.append(f"• **{brand}** **{size}**: {', '.join(specs)}")
     return "⚖️ **So sánh lốp**\n" + "\n".join(lines)
 
 
@@ -443,10 +466,10 @@ def _format_xe_lop(records: list[dict], question: str | None = None) -> str:
                 brand = t.get("brand") or ""
                 pattern = t.get("pattern_code") or ""
                 price = _fmt_price(t.get("sale_price_inc_vat"))
-                text = f"   {pos_vn}: {brand} {size}"
+                text = f"   **{pos_vn}**: **{brand}** **{size}**"
                 if pattern:
-                    text += f" (hoa {pattern})"
-                text += f" — {price}đ"
+                    text += f" (hoa **{pattern}**)"
+                text += f" — **{price}đ**"
                 lines.append(text)
         if asked_pos:
             pos_filter = {"trước": "DÙNG_LỐP_TRƯỚC", "sau": "DÙNG_LỐP_SAU"}.get(asked_pos)
@@ -471,9 +494,9 @@ def _format_xe_lop(records: list[dict], question: str | None = None) -> str:
                 loai_hoa = t.get("loai") or ""
                 loi_ich = t.get("loi_ich") or ""
                 price = _fmt_price(t.get("sale_price_inc_vat"))
-                text = f"   {brand} {size}"
+                text = f"   **{brand}** **{size}**"
                 if pattern:
-                    text += f" (hoa {pattern}"
+                    text += f" (hoa **{pattern}**"
                     if loai_hoa:
                         text += f" — {loai_hoa}"
                     text += ")"
@@ -481,7 +504,7 @@ def _format_xe_lop(records: list[dict], question: str | None = None) -> str:
                     # Lấy ngắn gọn benefit: chỉ lấy phần trước dấu ; đầu tiên
                     short = loi_ich.split(";")[0].strip()
                     text += f": {short}"
-                text += f" — {price}đ"
+                text += f" — **{price}đ**"
                 lines.append(text)
         if asked_pos:
             lines.append(f"💡 Bạn hỏi lốp **{asked_pos}** cho xe này.")
@@ -505,10 +528,10 @@ def _format_lop_xe(records: list[dict], question: str | None = None) -> str:
         if key in seen:
             continue
         seen.add(key)
-        text = f"• {brand} {size}"
+        text = f"• **{brand}** **{size}**"
         if pattern:
-            text += f" (hoa {pattern})"
-        text += f" — {price}đ"
+            text += f" (hoa **{pattern}**)"
+        text += f" — **{price}đ**"
         lines.append(text)
     return "🔧 **Lốp phù hợp**\n" + "\n".join(lines)
 
@@ -520,7 +543,7 @@ def _format_hoa_lop(records: list[dict], question: str | None = None) -> str:
 
     # Chỉ có code → danh sách kiểu hoa
     if "tire_size" not in first and "code" in first:
-        lines = [f"• {r.get('code','?')} ({r.get('loai','')})" for r in records if r.get('code')]
+        lines = [f"• **{r.get('code','?')}** ({r.get('loai','')})" for r in records if r.get('code')]
         return "🎨 **Các kiểu hoa lốp**\n" + "\n".join(lines)
 
     # Có tire_size → từng lốp + hoa
@@ -531,10 +554,10 @@ def _format_hoa_lop(records: list[dict], question: str | None = None) -> str:
         code = r.get("code") or r.get("pattern_code") or ""
         loai = r.get("loai") or ""
         price = _fmt_price(r.get("sale_price_inc_vat"))
-        text = f"• {brand} {size} (hoa {code}"
+        text = f"• **{brand}** **{size}** (hoa **{code}**"
         if loai:
             text += f" — {loai}"
-        text += f") — {price}đ"
+        text += f") — **{price}đ**"
         lines.append(text)
     return "🎨 **Lốp theo kiểu hoa**\n" + "\n".join(lines)
 
@@ -549,7 +572,7 @@ def _format_hoa_loi_ich(records: list[dict], question: str | None = None) -> str
         loi_ich = r.get("loi_ich") or ""
         phu_hop = r.get("phu_hop") or ""
         dieu_kien = r.get("dieu_kien_duong") or ""
-        text = f"• {code}: {loai}"
+        text = f"• **{code}**: {loai}"
         if loi_ich:
             text += f" | {loi_ich}"
         if phu_hop:
@@ -567,9 +590,9 @@ def _format_sam(records: list[dict], question: str | None = None) -> str:
     for r in records:
         size = r.get("tube_size") or "?"
         price = _fmt_price(r.get("sale_price_inc_vat"))
-        text = f"• Săm {size} — {price}đ"
+        text = f"• Săm **{size}** — **{price}đ**"
         if r.get("tire_size"):
-            text += f" (dùng lốp {r['tire_size']})"
+            text += f" (dùng lốp **{r['tire_size']}**)"
         lines.append(text)
     return "🛞 **Săm xe**\n" + "\n".join(lines)
 
@@ -582,8 +605,8 @@ def _format_thuong_hieu_xe(records: list[dict], question: str | None = None) -> 
         name = r.get("name") or "?"
         ft = r.get("front_tire") or ""
         rt = r.get("rear_tire") or ""
-        spec = f" ({ft}/{rt})" if ft and rt else ""
-        lines.append(f"• {name}{spec}")
+        spec = f" (**{ft}**/**{rt}**)" if ft and rt else ""
+        lines.append(f"• **{name}**{spec}")
     return "🏢 **Danh sách xe**\n" + "\n".join(lines)
 
 
@@ -619,6 +642,8 @@ def _format_general(records: list[dict], question: str | None = None) -> str:
         "outer_diameter_mm": "đường kính", "overall_width_mm": "rộng",
         "vi_tri": "vị trí",
     }
+    # Các key quan trọng cần in đậm
+    BOLD_KEYS = {"tire_size", "sale_price_inc_vat", "gia", "price", "brand", "pattern_code", "code", "name", "tube_size", "front_tire", "rear_tire", "size_lop_sau", "size_lop_truoc"}
     lines = []
     for r in records[:10]:
         parts = []
@@ -628,15 +653,19 @@ def _format_general(records: list[dict], question: str | None = None) -> str:
             label = LABEL_MAP.get(k, k)
             val = v
             if k in ("sale_price_inc_vat", "gia", "price"):
-                val = _fmt_price(v) + "đ"
+                val = f"**{_fmt_price(v)}đ**"
             elif k in ("max_speed_kmh",):
-                val = str(v) + " km/h"
+                val = f"**{v} km/h**"
             elif k in ("max_load_kg",):
-                val = str(v) + " kg"
+                val = f"**{v} kg**"
             elif k == "motorcycle_type":
                 val = {"Scooter": "tay ga", "Manual": "xe số"}.get(v, v)
             elif k == "vi_tri":
                 val = {"DÙNG_LỐP_TRƯỚC": "trước", "DÙNG_LỐP_SAU": "sau"}.get(v, v)
+            elif k in BOLD_KEYS:
+                val = f"**{v}**"
+            else:
+                val = str(v)
             parts.append(f"{label} {val}")
         lines.append("• " + " | ".join(parts))
     if len(records) > 10:
@@ -703,15 +732,26 @@ class GraphRAGV5:
         cypher = cypher.rstrip(";").strip()
         return cypher
 
-    def _generate_cypher(self, question: str) -> tuple[str | None, str | None]:
-        """Gọi Gemini sinh Cypher từ câu hỏi.
+    def _generate_cypher(self, question: str, history: list | None = None) -> tuple[str | None, str | None]:
+        """Gọi Gemini sinh Cypher từ câu hỏi + history context.
 
         Returns:
             (cypher, raw_response) — nếu lỗi thì (None, error_msg)
         """
+        history = history or []
+        history_context = ""
+        if history:
+            history_lines = []
+            for h in history[-4:]:
+                role = "Người dùng" if (isinstance(h, dict) and h.get("role") == "user") else "Trợ lý"
+                text = h.get("text", h.get("content", "")) if isinstance(h, dict) else str(h)
+                history_lines.append(f"{role}: {text}")
+            history_context = "LỊCH SỬ HỘI THOẠI:\n" + "\n".join(history_lines) + "\n\n"
+
         prompt = CYPHER_PROMPT_TEMPLATE.format(
             schema=SCHEMA,
             examples=self._examples_text,
+            history_context=history_context,
             question=question,
         )
 
@@ -746,9 +786,12 @@ class GraphRAGV5:
             logger.exception("[V5] Cypher execution error")
             return None, str(e)
 
-    def _answer_from_context(self, question: str, cypher: str, records: list[dict]) -> str:
+    def _answer_from_context(self, question: str, cypher: str, records: list[dict], history: list | None = None) -> str:
         """Format kết quả dựa trên intent — KHÔNG gọi Gemini."""
         if not records:
+            # Có history thì gợi ý user thử lại
+            if history:
+                return "Tôi không tìm thấy thông tin phù hợp. Bạn có thể thử hỏi theo cách khác hoặc kiểm tra lại tên xe nhé."
             return "Tôi không tìm thấy thông tin phù hợp."
 
         # Chuẩn hoá keys: 't.tire_size' → 'tire_size'
@@ -758,7 +801,7 @@ class GraphRAGV5:
         logger.info("[V5] Intent: %s (%s records)", intent, len(records))
         return _format_results(intent, question, records)
 
-    def _answer_with_gemini(self, question: str, template_answer: str, records: list[dict]) -> str | None:
+    def _answer_with_gemini(self, question: str, template_answer: str, records: list[dict], history: list | None = None) -> str | None:
         """Deep mode: dùng Gemini paraphrase câu trả lời cho tự nhiên hơn.
 
         Gọi Gemini với ANSWER_PROMPT_TEMPLATE để viết lại câu trả lời
@@ -766,8 +809,20 @@ class GraphRAGV5:
         """
         from app.pipeline.prompts import ANSWER_PROMPT_TEMPLATE
 
+        # Inject history context nếu có
+        history_context = ""
+        if history:
+            history_lines = []
+            for h in history[-2:]:
+                role = "Người dùng" if (isinstance(h, dict) and h.get("role") == "user") else "Trợ lý"
+                text = h.get("text", h.get("content", "")) if isinstance(h, dict) else str(h)
+                history_lines.append(f"{role}: {text}")
+            if history_lines:
+                history_context = "HỘI THOẠI TRƯỚC ĐÓ:\n" + "\n".join(history_lines) + "\n\n"
+
         data_str = json.dumps(records[:5], ensure_ascii=False, indent=2)
         prompt = ANSWER_PROMPT_TEMPLATE.format(
+            history_context=history_context,
             data=data_str,
             question=question,
             template_answer=template_answer,
@@ -882,19 +937,27 @@ NHIỆM VỤ:
 
     # ── Public API ──────────────────────────────────────────────────────
 
-    def run(self, query: str, mode: str = "fast") -> str:
+    def run(self, query: str, mode: str = "fast", history: list | None = None) -> str:
         """Run pipeline: Gemini sinh Cypher → Neo4j → Template + optional Deep mode.
 
         Args:
             query: Câu hỏi bằng tiếng Việt.
             mode: "fast" (template, 1 call Gemini) hoặc "deep" (paraphrase, 2 calls Gemini).
+            history: Lịch sử hội thoại (mặc định []) — dùng cho context xuyên suốt.
 
         Returns:
             Câu trả lời dạng text.
         """
         start = time.time()
+        history = history or []
         logger.info("=" * 50)
         logger.info("[V5] Query: %s (mode=%s)", query, mode)
+        if history:
+            logger.info("[V5] History: %d tin nhắn", len(history))
+            for i, h in enumerate(history[-4:]):  # log 4 tin gần nhất
+                role = h.get("role", h.get("role", "?")) if isinstance(h, dict) else "?"
+                text = h.get("text", h.get("content", str(h)[:80])) if isinstance(h, dict) else str(h)[:80]
+                logger.info("[V5]   History[%d] %s: %s", i, role, text)
         logger.info("=" * 50)
 
         if not query or not query.strip():
@@ -911,10 +974,10 @@ NHIỆM VỤ:
             return greeting_response
 
         # ═════════════════════════════════════════════════════════════════
-        # STEP 1: Gemini sinh Cypher
+        # STEP 1: Gemini sinh Cypher (có history context)
         # ═════════════════════════════════════════════════════════════════
         logger.info("[V5] Step 1: Gemini sinh Cypher...")
-        cypher, err = self._generate_cypher(query)
+        cypher, err = self._generate_cypher(query, history)
         if cypher is None:
             logger.error("[V5] Không sinh được Cypher: %s", err)
             return "Xin lỗi, tôi không thể tạo truy vấn cho câu hỏi này."
@@ -946,14 +1009,14 @@ NHIỆM VỤ:
         # STEP 3: Detect intent + format template (KHÔNG gọi Gemini)
         # ═════════════════════════════════════════════════════════════════
         logger.info("[V5] Step 3: Format kết quả...")
-        answer = self._answer_from_context(query, cypher, records)
+        answer = self._answer_from_context(query, cypher, records, history)
 
         # ═════════════════════════════════════════════════════════════════
-        # STEP 4 (Deep mode): Gemini paraphrase câu trả lời
+        # STEP 4 (Deep mode): Gemini paraphrase câu trả lời (có history)
         # ═════════════════════════════════════════════════════════════════
         if mode == "deep" and records:
             logger.info("[V5] Step 4: Gemini paraphrase (deep mode)...")
-            enhanced = self._answer_with_gemini(query, answer, records)
+            enhanced = self._answer_with_gemini(query, answer, records, history)
             if enhanced:
                 logger.info("[V5] Deep mode: paraphrase thành công")
                 answer = enhanced

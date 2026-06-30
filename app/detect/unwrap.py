@@ -34,6 +34,16 @@ def run_unwrap(
         dict với keys: image (ảnh đã unwrap), detail, image_base64
     """
     h_orig, w_orig = image.shape[:2]
+
+    # ── Đảm bảo r_inner < r_outer ───────────────────────────────────────
+    # Tránh lỗi np.linspace với số âm
+    if r_inner >= r_outer:
+        logger.warning("  r_inner (%d) >= r_outer (%d), swapping", r_inner, r_outer)
+        r_inner, r_outer = r_outer, r_inner
+    if r_inner >= r_outer:
+        logger.warning("  still invalid, fallback to ratio 0.35")
+        r_inner = int(r_outer * 0.35)
+
     out_h = r_outer - r_inner
 
     # Polar unwrap
