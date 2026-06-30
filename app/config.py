@@ -113,7 +113,33 @@ REDIS_URL = os.environ.get("REDIS_URL") or None
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or None
+GEMINI_API_KEY_2 = os.environ.get("GEMINI_API_KEY_2") or None
+GEMINI_API_KEY_3 = os.environ.get("GEMINI_API_KEY_3") or None
+
+# Danh sách model fallback (theo thứ tự ưu tiên)
+LLM_MODELS = [
+    "models/gemini-3.5-flash",
+    "models/gemini-3.1-flash-lite",
+    "models/gemini-2.5-flash",
+]
+
+# Danh sách API key fallback (theo thứ tự ưu tiên)
+LLM_API_KEYS = [
+    k for k in [GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3] if k
+]
+
 LLM_MOCK = os.environ.get("LLM_MOCK", "0").strip().lower() in ("1", "true", "yes", "on")
+
+# ── Log LLM config (dùng print vì logging chưa setup khi config được import) ──
+_keys_log = []
+for i, key in enumerate([GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3], 1):
+    if key:
+        _keys_log.append(f"Key{i}=✅ {key[:8]}...{key[-4:]}")
+    else:
+        _keys_log.append(f"Key{i}=⬜ (trống)")
+print(f"[CONFIG] 🔑 LLM keys: {' | '.join(_keys_log)}")
+print(f"[CONFIG] 🤖 LLM models: {', '.join(LLM_MODELS)}")
+print(f"[CONFIG] 🔧 LLM_MOCK={LLM_MOCK}")
 
 # ── Observability ────────────────────────────────────────────────────────────
 ENABLE_OTEL = os.environ.get("ENABLE_OTEL", "false").lower() in ("1", "true", "yes")

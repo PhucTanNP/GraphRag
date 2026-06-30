@@ -10,7 +10,7 @@ Trả về brand/size/pattern + steps chi tiết từng bước.
 import logging
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from app.tire_detector import TireDetector
+from app.detect import TireDetector
 
 logger = logging.getLogger(__name__)
 

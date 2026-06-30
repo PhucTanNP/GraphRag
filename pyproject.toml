@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "neo4j>=5.20.0",
+    "neo4j-graphrag>=1.0.0",
     "numpy>=1.26.0,<2.0.0",
     "redis>=5.0.0",
     "python-dotenv>=1.0.0",

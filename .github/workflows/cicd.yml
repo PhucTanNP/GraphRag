@@ -104,7 +104,7 @@ jobs:
               --restart always \
               -p 8000:8000 \
               --network app-network \
-              --env-file /home/ubuntu/app/.env \
+              --env-file /home/ubuntu/apps/GraphRag/.env \
               $IMAGE
 
             echo "Cleanup old images..."

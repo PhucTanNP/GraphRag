@@ -59,11 +59,18 @@ def home():
 
 
 @router.get("/query")
-def query(q: str, request: Request):
-    """Truy vấn GraphRAG pipeline (GET, đơn giản)."""
+def query(q: str, request: Request, mode: str = "fast"):
+    """Truy vấn GraphRAG pipeline (GET, đơn giản).
+
+    Args:
+        q: Câu hỏi bằng tiếng Việt.
+        mode: "fast" (template) hoặc "deep" (Gemini paraphrase).
+    """
     chatbot = request.app.state.chatbot
     try:
-        result = chatbot.run(q)
+        # Validate mode
+        mode = mode if mode in ("fast", "deep") else "fast"
+        result = chatbot.run(q, mode=mode)
         html = markdown_to_html(result)
         return {"result": html}
     except Exception as e:
@@ -79,22 +86,20 @@ def health(request: Request):
         chatbot = request.app.state.chatbot
         try:
             health_info = {
-                "embedder": chatbot.embedder.is_healthy(),
-                "matcher": chatbot.matcher.is_healthy(),
-                "neo4j": chatbot.db.is_healthy(),
+                "neo4j": chatbot.is_healthy(),
             }
         except Exception:
             health_info = {"error": "Health check failed"}
     return JSONResponse(content={
         "status": "ok",
-        "pipeline": "v4",
+        "pipeline": "v5",
         "components": health_info,
     })
 
 
 @router.post("/reset")
 def reset_context(request: Request):
-    """Reset conversation (no-op trong V4 pipeline mới)."""
+    """Reset conversation context."""
     chatbot = request.app.state.chatbot
     chatbot.reset_context()
     return {"status": "OK"}

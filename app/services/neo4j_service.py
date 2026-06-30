@@ -9,7 +9,7 @@ Cung cấp:
 Usage:
     from app.services import Neo4jClient, Neo4jService
 
-    # Direct client (backup scripts, value_store)
+    # Direct client (backup scripts)
     client = Neo4jClient()
     rows = client.query("MATCH (t:Tire) RETURN t LIMIT 5")
 
@@ -297,6 +297,10 @@ class Neo4jService:
             return self.ping()
         except Exception:
             return False
+
+    def get_driver(self):
+        """Return Neo4j driver instance (dùng cho neo4j-graphrag)."""
+        return self.client.driver
 
     def close(self):
         self.client.close()

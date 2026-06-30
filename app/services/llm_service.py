@@ -3,6 +3,7 @@
 Cung cấp:
   - ``LLMClient`` class (full client, merged from ``app.llm_client``)
   - ``LLMService`` wrapper với singleton + lifecycle
+  - ``GeminiLLM`` — ``LLMInterface`` wrapper cho ``neo4j-graphrag`` Text2Cypher
   - ``get_llm()`` singleton accessor
   - ``init_llm()`` factory
 
@@ -11,6 +12,11 @@ Usage:
 
     client = LLMClient()
     answer = client.chat("lốp 120/70-17 tốc độ bao nhiêu?")
+
+    # Dùng với neo4j-graphrag:
+    from app.services.llm_service import GeminiLLM
+    llm = GeminiLLM()
+    response = llm.invoke("MATCH (t:Tire) RETURN t LIMIT 1")
 """
 
 from __future__ import annotations
@@ -23,6 +29,17 @@ from google import genai
 
 from app.config import GEMINI_API_KEY, LLM_MOCK
 
+try:
+    from neo4j_graphrag.llm import LLMInterface, LLMResponse
+except ImportError:
+    # Fallback nếu chưa cài neo4j-graphrag
+    class LLMInterface:  # type: ignore
+        pass
+
+    class LLMResponse:  # type: ignore
+        def __init__(self, content: str):
+            self.content = content
+
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
@@ -33,23 +50,52 @@ load_dotenv()
 #  LLMClient
 # ═══════════════════════════════════════════════════════════════════════════
 class LLMClient:
-    """Gemini LLM client với mock fallback."""
+    """Gemini LLM client với multi-key + multi-model fallback.
 
-    def __init__(self, model_name=None, temperature=0.0, max_retries=2):
-        self.client = None
-        self._mock = LLM_MOCK or not GEMINI_API_KEY
+    Tự động luân phiên:
+      1. Thử model chính với từng key (GEMINI_API_KEY_1 → 2 → 3)
+      2. Nếu hết key → fallback sang model tiếp theo
+      3. Log rõ model + key đang dùng
+    """
 
-        if not self._mock:
-            self.client = genai.Client(api_key=GEMINI_API_KEY)
-
-        self.model = model_name or "models/gemini-3.1-flash-lite"
-        self._fallback_models = [
-            "models/gemini-3.5-flash",
-            "models/gemini-3.1-flash-lite",
-            "models/gemini-2.5-flash",
-        ]
+    def __init__(
+        self,
+        model_name: str | None = None,
+        models: list[str] | None = None,
+        api_keys: list[str] | None = None,
+        temperature: float = 0.0,
+    ):
         self.temperature = temperature
-        self.max_retries = max_retries
+
+        # Models
+        from app.config import LLM_MODELS as FALLBACK_MODELS
+
+        self._all_models = models or FALLBACK_MODELS
+        # Nếu model_name được chỉ định, đặt lên đầu danh sách
+        if model_name and model_name not in self._all_models:
+            self._all_models = [model_name] + self._all_models
+        elif model_name and model_name in self._all_models:
+            self._all_models = [model_name] + [m for m in self._all_models if m != model_name]
+
+        self.model = self._all_models[0]  # model chính (dùng cho log)
+
+        # API keys
+        from app.config import LLM_API_KEYS as FALLBACK_KEYS
+
+        self._all_keys = api_keys or FALLBACK_KEYS
+
+        self._mock = LLM_MOCK or not self._all_keys
+        if not self._mock:
+            self._client = genai.Client(api_key=self._all_keys[0])
+        else:
+            self._client = None  # type: ignore
+
+    def _log_key_index(self, key: str) -> int:
+        """Trả về index của key (1, 2, 3...) để log thân thiện."""
+        try:
+            return self._all_keys.index(key) + 1
+        except ValueError:
+            return 0
 
     def chat(self, prompt: str) -> str:
         if not prompt or not prompt.strip():
@@ -59,12 +105,34 @@ class LLMClient:
             logger.info("[LLM] MOCK — no token counting")
             return "MOCK_RESPONSE"
 
-        models_to_try = [self.model] + [m for m in self._fallback_models if m != self.model]
+        last_error = None
 
-        for attempt in range(self.max_retries):
-            for model_candidate in models_to_try:
+        # Strategy: thử model chính → model nhỏ hơn trên cùng key,
+        # sau đó mới chuyển key tiếp theo. Tránh dồn cùng model quá tải.
+        for key_idx, api_key in enumerate(self._all_keys):
+            key_num = key_idx + 1
+
+            # Khởi tạo client với key này
+            try:
+                self._client = genai.Client(api_key=api_key)
+            except Exception as e:
+                logger.warning("[LLM] Key %d init failed: %s", key_num, e)
+                continue
+
+            for model_idx, model_candidate in enumerate(self._all_models):
+                # Log model + key
+                if key_idx == 0 and model_idx == 0:
+                    logger.info("[LLM] Using model=%s | key=%d", model_candidate, key_num)
+                else:
+                    logger.warning(
+                        "[LLM] ⚠️ FALLBACK → model=%s key=%d (lý do: %s trước đó failed)",
+                        model_candidate,
+                        key_num,
+                        self._all_models[model_idx - 1] if model_idx > 0 else f"key_{key_num - 1} hết",
+                    )
+
                 try:
-                    response = self.client.models.generate_content(
+                    response = self._client.models.generate_content(
                         model=model_candidate, contents=prompt
                     )
                     if response and hasattr(response, "text") and getattr(response, "text", "").strip():
@@ -74,24 +142,91 @@ class LLMClient:
                         usage = getattr(response, "usage_metadata", None)
                         if usage is not None:
                             logger.info(
-                                "[LLM] model=%s | tokens: prompt=%s candidate=%s total=%s",
+                                "[LLM] model=%s | key=%d | tokens: prompt=%s candidate=%s total=%s",
                                 model_candidate,
+                                key_num,
                                 getattr(usage, "prompt_token_count", "?"),
                                 getattr(usage, "candidates_token_count", "?"),
                                 getattr(usage, "total_token_count", "?"),
                             )
                         else:
-                            logger.info("[LLM] model=%s | tokens: N/A (no usage_metadata)", model_candidate)
+                            logger.info(
+                                "[LLM] model=%s | key=%d | tokens: N/A",
+                                model_candidate,
+                                key_num,
+                            )
 
                         return resp_text
                 except Exception as e:
-                    if attempt == self.max_retries - 1 and model_candidate == models_to_try[-1]:
-                        logger.error(f"Gemini error (final): {e}")
+                    last_error = e
+                    err_str = str(e)
+                    if "429" in err_str or "quota" in err_str.lower():
+                        logger.warning(
+                            "[LLM] ⚠️ Key %d hết quota với model %s",
+                            key_num,
+                            model_candidate,
+                        )
+                    else:
+                        logger.warning(
+                            "[LLM] ⚠️ Lỗi model=%s key=%d: %s",
+                            model_candidate,
+                            key_num,
+                            err_str[:100],
+                        )
                     continue
-            time.sleep(2 * (attempt + 1))
 
-        logger.warning("[LLM] All models failed — returning empty")
+        # Hết tất cả model + key
+        logger.error("[LLM] ❌ Tất cả models và keys đều failed: %s", last_error)
         return ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  GeminiLLM — LLMInterface for neo4j-graphrag
+# ═══════════════════════════════════════════════════════════════════════════
+
+class GeminiLLM(LLMInterface):
+    """Wrapper Gemini → LLMInterface (dùng cho Text2CypherRetriever).
+
+    Usage:
+        llm = GeminiLLM()
+        result = llm.invoke("CREATE (t:Tire {size: '120/70-17'})")
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str = "models/gemini-2.0-flash",
+        temperature: float = 0.0,
+    ):
+        self.api_key = api_key or GEMINI_API_KEY
+        self.model_name = model_name
+        self.temperature = temperature
+        self._mock = LLM_MOCK or not self.api_key
+
+        if not self._mock:
+            self.client = genai.Client(api_key=self.api_key)
+        else:
+            self.client = None
+
+    def invoke(self, prompt: str) -> LLMResponse:
+        """Gọi Gemini và trả về LLMResponse (required bởi LLMInterface)."""
+        if self._mock or self.client is None:
+            logger.info("[GeminiLLM] MOCK — returning empty")
+            return LLMResponse(content="")
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+            )
+            text = response.text.strip() if response.text else ""
+            return LLMResponse(content=text)
+        except Exception as e:
+            logger.error(f"[GeminiLLM] Error: {e}")
+            return LLMResponse(content="")
+
+    def is_healthy(self) -> bool:
+        return self.client is not None or self._mock
 
 
 # ── Module-level singleton ───────────────────────────────────────────────
@@ -124,7 +259,7 @@ class LLMService:
 
     def is_healthy(self) -> bool:
         return self.client is not None and (
-            self.client._mock or self.client.client is not None
+            self.client._mock or self.client._client is not None
         )
 
 
